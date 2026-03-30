@@ -6,9 +6,9 @@ const axios = require('axios');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+// 🔥 FIX: Increase Express body size limit to handle large incoming payloads from JanitorAI
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // NVIDIA NIM API configuration
 const NIM_API_BASE = process.env.NIM_API_BASE || 'https://integrate.api.nvidia.com/v1';
@@ -20,6 +20,12 @@ const SHOW_REASONING = false; // Set to true to show reasoning with <think> tags
 // 🔥 THINKING MODE TOGGLE - Enables thinking for specific models that support it
 const ENABLE_THINKING_MODE = false; // Set to true to enable chat_template_kwargs thinking parameter
 
+// 🔥 FIX: Max tokens reduced to avoid upstream 413 from NVIDIA NIM
+const DEFAULT_MAX_TOKENS = 4096;
+
+// 🔥 FIX: Max messages to keep in history (trims old ones, keeps system prompt + recent turns)
+const MAX_HISTORY_MESSAGES = 20;
+
 // Model mapping (adjust based on available NIM models)
 const MODEL_MAPPING = {
   'gpt-3.5-turbo': 'nvidia/llama-3.1-nemotron-ultra-253b-v1',
@@ -30,6 +36,20 @@ const MODEL_MAPPING = {
   'claude-3-sonnet': 'openai/gpt-oss-20b',
   'gemini-pro': 'qwen/qwen3-next-80b-a3b-thinking' 
 };
+
+// 🔥 FIX: Truncate message history to prevent payload from growing too large.
+// Always keeps the system prompt (if any) + the most recent N messages.
+function truncateMessages(messages, maxMessages) {
+  if (!messages || messages.length <= maxMessages) return messages;
+
+  const systemMessages = messages.filter(m => m.role === 'system');
+  const nonSystemMessages = messages.filter(m => m.role !== 'system');
+
+  // Keep only the most recent messages (tail of the conversation)
+  const recentMessages = nonSystemMessages.slice(-maxMessages);
+
+  return [...systemMessages, ...recentMessages];
+}
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -60,6 +80,9 @@ app.get('/v1/models', (req, res) => {
 app.post('/v1/chat/completions', async (req, res) => {
   try {
     const { model, messages, temperature, max_tokens, stream } = req.body;
+
+    // 🔥 FIX: Truncate history before sending to NVIDIA NIM
+    const trimmedMessages = truncateMessages(messages, MAX_HISTORY_MESSAGES);
     
     // Smart model selection with fallback
     let nimModel = MODEL_MAPPING[model];
@@ -94,9 +117,9 @@ app.post('/v1/chat/completions', async (req, res) => {
     // Transform OpenAI request to NIM format
     const nimRequest = {
       model: nimModel,
-      messages: messages,
+      messages: trimmedMessages, // 🔥 FIX: Use trimmed messages
       temperature: temperature || 0.6,
-      max_tokens: max_tokens || 9024,
+      max_tokens: max_tokens || DEFAULT_MAX_TOKENS, // 🔥 FIX: Use reduced default
       extra_body: ENABLE_THINKING_MODE ? { chat_template_kwargs: { thinking: true } } : undefined,
       stream: stream || false
     };
@@ -215,6 +238,17 @@ app.post('/v1/chat/completions', async (req, res) => {
     
   } catch (error) {
     console.error('Proxy error:', error.message);
+
+    // 🔥 FIX: Better 413 error messaging
+    if (error.response?.status === 413) {
+      return res.status(413).json({
+        error: {
+          message: 'Payload too large: try reducing max_tokens or shortening the conversation history.',
+          type: 'invalid_request_error',
+          code: 413
+        }
+      });
+    }
     
     res.status(error.response?.status || 500).json({
       error: {
@@ -242,4 +276,6 @@ app.listen(PORT, () => {
   console.log(`Health check: http://localhost:${PORT}/health`);
   console.log(`Reasoning display: ${SHOW_REASONING ? 'ENABLED' : 'DISABLED'}`);
   console.log(`Thinking mode: ${ENABLE_THINKING_MODE ? 'ENABLED' : 'DISABLED'}`);
+  console.log(`Max tokens default: ${DEFAULT_MAX_TOKENS}`);
+  console.log(`Max history messages: ${MAX_HISTORY_MESSAGES}`);
 });
