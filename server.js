@@ -24,7 +24,7 @@ const ENABLE_THINKING_MODE = false; // Set to true to enable chat_template_kwarg
 const DEFAULT_MAX_TOKENS = 4096;
 
 // 🔥 FIX: Max messages to keep in history (trims old ones, keeps system prompt + recent turns)
-const MAX_HISTORY_MESSAGES = 20;
+const MAX_HISTORY_MESSAGES = 50;
 
 // Model mapping (adjust based on available NIM models)
 const MODEL_MAPPING = {
