@@ -122,7 +122,7 @@ app.post('/v1/chat/completions', async (req, res) => {
       temperature: temperature || 0.6,
       max_tokens: max_tokens || DEFAULT_MAX_TOKENS, // 🔥 FIX: Use reduced default
       extra_body: ENABLE_THINKING_MODE ? { chat_template_kwargs: { thinking: true } } : undefined,
-      stream: stream || true
+      stream: stream !== undefined ? stream : true
     };
     
     // Make request to NVIDIA NIM API
