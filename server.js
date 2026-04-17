@@ -21,7 +21,7 @@ const SHOW_REASONING = false; // Set to true to show reasoning with <think> tags
 const ENABLE_THINKING_MODE = false; // Set to true to enable chat_template_kwargs thinking parameter
 
 // 🔥 FIX: Max tokens reduced to avoid upstream 413 from NVIDIA NIM
-const DEFAULT_MAX_TOKENS = 4096;
+const DEFAULT_MAX_TOKENS = 1024;
 
 // 🔥 FIX: Max messages to keep in history (trims old ones, keeps system prompt + recent turns)
 const MAX_HISTORY_MESSAGES = 50;
