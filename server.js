@@ -81,6 +81,7 @@ app.get('/v1/models', (req, res) => {
 app.post('/v1/chat/completions', async (req, res) => {
   try {
     const { model, messages, temperature, max_tokens, stream } = req.body;
+    console.log(`Messages received from JanitorAI: ${messages?.length}`);
 
     // 🔥 FIX: Truncate history before sending to NVIDIA NIM
     const trimmedMessages = truncateMessages(messages, MAX_HISTORY_MESSAGES);
